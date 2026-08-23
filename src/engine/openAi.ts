@@ -13,6 +13,14 @@ export class OpenAiEngine implements AiEngine {
   config: OpenAiConfig;
   client: OpenAI;
 
+  /**
+   * Provider name used for error normalization. Subclasses that reuse the
+   * OpenAI-compatible transport (e.g. OrcaRouter) override this so errors
+   * are attributed to the right provider without re-implementing the
+   * request path.
+   */
+  protected providerName = 'openai';
+
   constructor(config: OpenAiConfig) {
     this.config = config;
 
@@ -92,7 +100,7 @@ export class OpenAiEngine implements AiEngine {
       let content = message?.content;
       return removeContentTags(content, 'think');
     } catch (error) {
-      throw normalizeEngineError(error, 'openai', this.config.model);
+      throw normalizeEngineError(error, this.providerName, this.config.model);
     }
   };
 }

@@ -137,12 +137,18 @@ describe('provider model fetchers', () => {
       ],
       payload: {
         data: [
+          { id: 'openai/gpt-5' },
           { id: 'orcarouter/auto' },
-          { id: 'other-route' },
+          { id: 'anthropic/claude-sonnet-4-5' },
           { id: 'orcarouter/fusion' }
         ]
       },
-      expected: ['orcarouter/auto', 'orcarouter/fusion']
+      expected: [
+        'anthropic/claude-sonnet-4-5',
+        'openai/gpt-5',
+        'orcarouter/auto',
+        'orcarouter/fusion'
+      ]
     }
   ])(
     'preserves the $provider request and response mapping',
@@ -153,6 +159,22 @@ describe('provider model fetchers', () => {
       expect(fetchMock.mock.calls[0]).toEqual(request);
     }
   );
+
+  it('keeps direct provider-prefixed OrcaRouter models selectable', async () => {
+    mockJsonResponse({
+      data: [
+        { id: 'openai/gpt-5' },
+        { id: 'anthropic/claude-sonnet-4-5' },
+        { id: 'orcarouter/auto' }
+      ]
+    });
+
+    await expect(fetchOrcaRouterModels('orcarouter-key')).resolves.toEqual([
+      'anthropic/claude-sonnet-4-5',
+      'openai/gpt-5',
+      'orcarouter/auto'
+    ]);
+  });
 
   it.each([
     ['OpenAI', () => fetchOpenAIModels('key'), MODEL_LIST.openai],

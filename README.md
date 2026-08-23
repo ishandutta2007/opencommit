@@ -264,7 +264,7 @@ oco config set OCO_AI_PROVIDER=llamacpp OCO_API_URL=<your_llamacpp_endpoint>
 
 By default OpenCommit uses [OpenAI](https://openai.com).
 
-You could switch to [OrcaRouter](https://www.orcarouter.ai), an OpenAI-compatible gateway that routes every request to the best available model and runs gateway-level, zero-trust security for AI agents on the same endpoint.
+You could switch to [OrcaRouter](https://www.orcarouter.ai), an OpenAI-compatible gateway that routes every request to the best available model. It can also run gateway-level, zero-trust security for AI agents on the same endpoint — screening every prompt/response and governing every tool call on a default-deny basis, with no application code changes. Enabling those guards is a separate step: apply a workspace policy/autonomy level on the OrcaRouter side (the recommended `balanced` posture is audit-by-default, while `tight` is default-deny). OpenCommit itself does not configure them — it simply calls the gateway like any OpenAI-compatible API.
 
 ```sh
 oco config set OCO_AI_PROVIDER=orcarouter OCO_API_KEY=<your_orcarouter_api_key>

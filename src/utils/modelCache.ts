@@ -191,8 +191,11 @@ export async function fetchOrcaRouterModels(apiKey: string): Promise<string[]> {
     fallback: MODEL_LIST.orcarouter,
     mapModels: (data) =>
       (data as ModelListResponse).data
+        // OrcaRouter intentionally returns provider-prefixed model IDs such as
+        // `openai/gpt-5`, `anthropic/claude-*`, `google/*` — the gateway exposes
+        // them all via the OpenAI-compatible chat endpoint, so keep the full
+        // catalog selectable rather than filtering to `orcarouter/*` aliases.
         ?.map((model) => model.id)
-        .filter((id) => id.startsWith('orcarouter/'))
         .sort()
   });
 }

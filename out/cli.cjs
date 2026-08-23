@@ -84671,6 +84671,13 @@ function parseCustomHeaders(headers) {
 // src/engine/openAi.ts
 var OpenAiEngine = class {
   constructor(config8) {
+    /**
+     * Provider name used for error normalization. Subclasses that reuse the
+     * OpenAI-compatible transport (e.g. OrcaRouter) override this so errors
+     * are attributed to the right provider without re-implementing the
+     * request path.
+     */
+    this.providerName = "openai";
     this.generateCommitMessage = async (messages) => {
       const isReasoningModel = /^(o[1-9]|gpt-5)/.test(this.config.model);
       const params = {
@@ -84693,7 +84700,7 @@ var OpenAiEngine = class {
         let content = message?.content;
         return removeContentTags(content, "think");
       } catch (error) {
-        throw normalizeEngineError(error, "openai", this.config.model);
+        throw normalizeEngineError(error, this.providerName, this.config.model);
       }
     };
     this.config = config8;
@@ -84895,32 +84902,7 @@ var OrcaRouterEngine = class extends OpenAiEngine {
       baseURL: "https://api.orcarouter.ai/v1",
       ...config8
     });
-    // Identical method from OpenAiEngine, re-implemented here
-    this.generateCommitMessage = async (messages) => {
-      const isReasoningModel = /^(o[1-9]|gpt-5)/.test(this.config.model);
-      const params = {
-        model: this.config.model,
-        messages,
-        ...isReasoningModel ? { max_completion_tokens: this.config.maxTokensOutput } : {
-          temperature: 0,
-          top_p: 0.1,
-          max_tokens: this.config.maxTokensOutput
-        }
-      };
-      try {
-        const REQUEST_TOKENS = messages.map((msg) => tokenCount(msg.content) + 4).reduce((a4, b7) => a4 + b7, 0);
-        if (REQUEST_TOKENS > this.config.maxTokensInput - this.config.maxTokensOutput)
-          throw new Error("TOO_MUCH_TOKENS" /* tooMuchTokens */);
-        const completion = await this.client.chat.completions.create(
-          params
-        );
-        const message = completion.choices[0].message;
-        let content = message?.content;
-        return removeContentTags(content, "think");
-      } catch (error) {
-        throw normalizeEngineError(error, "orcarouter", this.config.model);
-      }
-    };
+    this.providerName = "orcarouter";
   }
 };
 
@@ -86479,7 +86461,7 @@ async function fetchOrcaRouterModels(apiKey) {
     url: "https://api.orcarouter.ai/v1/models",
     headers: { Authorization: `Bearer ${apiKey}` },
     fallback: MODEL_LIST.orcarouter,
-    mapModels: (data) => data.data?.map((model) => model.id).filter((id) => id.startsWith("orcarouter/")).sort()
+    mapModels: (data) => data.data?.map((model) => model.id).sort()
   });
 }
 async function fetchModelsForProvider(provider, apiKey, baseUrl, forceRefresh = false) {
