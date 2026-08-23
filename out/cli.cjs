@@ -85950,7 +85950,7 @@ ${excludedFiles.join(
   const diffableFiles = files.filter((file) => !isFileExcludedFromDiff(file));
   const { stdout: diff } = await execa(
     "git",
-    ["diff", "--staged", "--", ...diffableFiles],
+    ["diff", "--staged", "--no-ext-diff", "--", ...diffableFiles],
     { cwd: gitDir }
   );
   return diff;
