@@ -42,6 +42,9 @@ function isCacheValid(cache: ModelCache | null): boolean {
 
 interface ModelListItem {
   id: string;
+  architecture?: {
+    output_modalities?: string[];
+  };
 }
 
 interface ModelListResponse {
@@ -184,6 +187,25 @@ export async function fetchDeepSeekModels(apiKey: string): Promise<string[]> {
   });
 }
 
+export async function fetchOrcaRouterModels(apiKey: string): Promise<string[]> {
+  return fetchModelList({
+    url: 'https://api.orcarouter.ai/v1/models',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    fallback: MODEL_LIST.orcarouter,
+    mapModels: (data) =>
+      (data as ModelListResponse).data
+        // The catalog also contains image, audio, and video generators. Keep
+        // text-output models plus entries whose older metadata omits the
+        // modality field, while preserving provider-prefixed chat model IDs.
+        ?.filter((model) => {
+          const outputModalities = model.architecture?.output_modalities;
+          return !outputModalities || outputModalities.includes('text');
+        })
+        ?.map((model) => model.id)
+        .sort()
+  });
+}
+
 export async function fetchModelsForProvider(
   provider: string,
   apiKey?: string,
@@ -262,6 +284,14 @@ export async function fetchModelsForProvider(
         models = await fetchOpenRouterModels(apiKey);
       } else {
         models = MODEL_LIST.openrouter;
+      }
+      break;
+
+    case OCO_AI_PROVIDER_ENUM.ORCAROUTER:
+      if (apiKey) {
+        models = await fetchOrcaRouterModels(apiKey);
+      } else {
+        models = MODEL_LIST.orcarouter;
       }
       break;
 

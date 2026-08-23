@@ -67322,6 +67322,7 @@ var OCO_AI_PROVIDER_ENUM = /* @__PURE__ */ ((OCO_AI_PROVIDER_ENUM2) => {
   OCO_AI_PROVIDER_ENUM2["DEEPSEEK"] = "deepseek";
   OCO_AI_PROVIDER_ENUM2["AIMLAPI"] = "aimlapi";
   OCO_AI_PROVIDER_ENUM2["OPENROUTER"] = "openrouter";
+  OCO_AI_PROVIDER_ENUM2["ORCAROUTER"] = "orcarouter";
   return OCO_AI_PROVIDER_ENUM2;
 })(OCO_AI_PROVIDER_ENUM || {});
 var PROVIDER_CONFIG_REQUIREMENTS = {
@@ -67334,6 +67335,7 @@ var PROVIDER_CONFIG_REQUIREMENTS = {
   ["mistral" /* MISTRAL */]: "apiKey",
   ["deepseek" /* DEEPSEEK */]: "apiKey",
   ["openrouter" /* OPENROUTER */]: "apiKey",
+  ["orcarouter" /* ORCAROUTER */]: "apiKey",
   ["aimlapi" /* AIMLAPI */]: "apiKey",
   ["azure" /* AZURE */]: "apiKey",
   ["mlx" /* MLX */]: "model",
@@ -67902,7 +67904,10 @@ var MODEL_LIST = {
     "x-ai/grok-3-mini-beta",
     "x-ai/grok-beta",
     "x-ai/grok-vision-beta"
-  ]
+  ],
+  // OrcaRouter available models
+  // https://api.orcarouter.ai/v1/models
+  orcarouter: ["orcarouter/auto"]
 };
 var getDefaultModel = (provider) => {
   switch (provider) {
@@ -67926,6 +67931,8 @@ var getDefaultModel = (provider) => {
       return MODEL_LIST.aimlapi[0];
     case "openrouter":
       return MODEL_LIST.openrouter[0];
+    case "orcarouter":
+      return MODEL_LIST.orcarouter[0];
     default:
       return MODEL_LIST.openai[0];
   }
@@ -67960,7 +67967,7 @@ var configValidators = {
     validateConfig(
       "OCO_API_KEY",
       value,
-      'You need to provide the OCO_API_KEY when OCO_AI_PROVIDER set to "openai" (default) or "ollama" or "mlx" or "azure" or "gemini" or "flowise" or "anthropic" or "deepseek". Run `oco config set OCO_API_KEY=your_key OCO_AI_PROVIDER=openai`'
+      'You need to provide the OCO_API_KEY when OCO_AI_PROVIDER set to "openai" (default) or "ollama" or "mlx" or "azure" or "gemini" or "flowise" or "anthropic" or "deepseek" or "orcarouter". Run `oco config set OCO_API_KEY=your_key OCO_AI_PROVIDER=openai`'
     );
     return value;
   },
@@ -68099,9 +68106,10 @@ var configValidators = {
         "groq",
         "deepseek",
         "aimlapi",
-        "openrouter"
+        "openrouter",
+        "orcarouter"
       ].includes(value) || value.startsWith("ollama") || value.startsWith("llamacpp"),
-      `${value} is not supported yet, use 'ollama', 'llamacpp', 'mlx', 'anthropic', 'azure', 'gemini', 'flowise', 'mistral', 'deepseek', 'aimlapi' or 'openai' (default)`
+      `${value} is not supported yet, use 'ollama', 'llamacpp', 'mlx', 'anthropic', 'azure', 'gemini', 'flowise', 'mistral', 'deepseek', 'aimlapi', 'orcarouter' or 'openai' (default)`
     );
     return value;
   },
@@ -68171,6 +68179,7 @@ var PROVIDER_API_KEY_URLS = {
   ["mistral" /* MISTRAL */]: "https://console.mistral.ai/api-keys/",
   ["deepseek" /* DEEPSEEK */]: "https://platform.deepseek.com/api_keys",
   ["openrouter" /* OPENROUTER */]: "https://openrouter.ai/keys",
+  ["orcarouter" /* ORCAROUTER */]: "https://www.orcarouter.ai",
   ["aimlapi" /* AIMLAPI */]: "https://aimlapi.com/app/keys",
   ["azure" /* AZURE */]: "https://portal.azure.com/",
   ["ollama" /* OLLAMA */]: null,
@@ -68187,6 +68196,7 @@ var RECOMMENDED_MODELS = {
   ["mistral" /* MISTRAL */]: "mistral-small-latest",
   ["deepseek" /* DEEPSEEK */]: "deepseek-v4-flash",
   ["openrouter" /* OPENROUTER */]: "openai/gpt-4o-mini",
+  ["orcarouter" /* ORCAROUTER */]: "orcarouter/auto",
   ["aimlapi" /* AIMLAPI */]: "gpt-4o-mini"
 };
 var defaultConfigPath = (0, import_path.join)((0, import_os.homedir)(), ".opencommit");
@@ -74406,6 +74416,7 @@ var PROVIDER_BILLING_URLS = {
   ["mistral" /* MISTRAL */]: "https://console.mistral.ai/billing/",
   ["deepseek" /* DEEPSEEK */]: "https://platform.deepseek.com/usage",
   ["openrouter" /* OPENROUTER */]: "https://openrouter.ai/credits",
+  ["orcarouter" /* ORCAROUTER */]: "https://www.orcarouter.ai",
   ["aimlapi" /* AIMLAPI */]: "https://aimlapi.com/app/billing",
   ["azure" /* AZURE */]: "https://portal.azure.com/#view/Microsoft_Azure_CostManagement",
   ["ollama" /* OLLAMA */]: null,
@@ -84728,6 +84739,13 @@ function parseCustomHeaders(headers) {
 // src/engine/openAi.ts
 var OpenAiEngine = class {
   constructor(config7) {
+    /**
+     * Provider name used for error normalization. Subclasses that reuse the
+     * OpenAI-compatible transport (e.g. OrcaRouter) override this so errors
+     * are attributed to the right provider without re-implementing the
+     * request path.
+     */
+    this.providerName = "openai";
     this.generateCommitMessage = async (messages) => {
       const isReasoningModel = typeof this.config.isReasoning === "boolean" ? this.config.isReasoning : /^(o[1-9]|gpt-5)/.test(this.config.model);
       const reasoningTokens = this.config.tokensMaxReasoning || 1e3;
@@ -84753,7 +84771,7 @@ var OpenAiEngine = class {
         let content = message?.content;
         return removeContentTags(content, "think");
       } catch (error) {
-        throw normalizeEngineError(error, "openai", this.config.model);
+        throw normalizeEngineError(error, this.providerName, this.config.model);
       }
     };
     this.config = config7;
@@ -84953,6 +84971,18 @@ var OpenRouterEngine = class {
   }
 };
 
+// src/engine/orcarouter.ts
+var DEFAULT_ORCAROUTER_BASE_URL = "https://api.orcarouter.ai/v1";
+var OrcaRouterEngine = class extends OpenAiEngine {
+  constructor(config7) {
+    super({
+      ...config7,
+      baseURL: config7.baseURL ?? DEFAULT_ORCAROUTER_BASE_URL
+    });
+    this.providerName = "orcarouter";
+  }
+};
+
 // src/utils/proxy.ts
 var import_undici = __toESM(require_undici(), 1);
 function resolveProxy(proxySetting) {
@@ -85038,6 +85068,8 @@ function getEngine(config7 = getConfig()) {
       return new AimlApiEngine(DEFAULT_CONFIG2);
     case "openrouter" /* OPENROUTER */:
       return new OpenRouterEngine(DEFAULT_CONFIG2);
+    case "orcarouter" /* ORCAROUTER */:
+      return new OrcaRouterEngine(DEFAULT_CONFIG2);
     default:
       return new OpenAiEngine(DEFAULT_CONFIG2);
   }
@@ -86522,6 +86554,17 @@ async function fetchDeepSeekModels(apiKey) {
     mapModels: (data) => data.data?.map((model) => model.id).sort()
   });
 }
+async function fetchOrcaRouterModels(apiKey) {
+  return fetchModelList({
+    url: "https://api.orcarouter.ai/v1/models",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    fallback: MODEL_LIST.orcarouter,
+    mapModels: (data) => data.data?.filter((model) => {
+      const outputModalities = model.architecture?.output_modalities;
+      return !outputModalities || outputModalities.includes("text");
+    })?.map((model) => model.id).sort()
+  });
+}
 async function fetchModelsForProvider(provider, apiKey, baseUrl, forceRefresh = false) {
   const cache = readCache();
   if (!forceRefresh && isCacheValid(cache) && cache.models[provider]) {
@@ -86581,6 +86624,13 @@ async function fetchModelsForProvider(provider, apiKey, baseUrl, forceRefresh = 
         models = await fetchOpenRouterModels(apiKey);
       } else {
         models = MODEL_LIST.openrouter;
+      }
+      break;
+    case "orcarouter" /* ORCAROUTER */:
+      if (apiKey) {
+        models = await fetchOrcaRouterModels(apiKey);
+      } else {
+        models = MODEL_LIST.orcarouter;
       }
       break;
     default:
@@ -86663,6 +86713,12 @@ var SETUP_PROVIDERS = [
     provider: "openrouter" /* OPENROUTER */,
     displayName: "OpenRouter (Multiple providers)",
     selectionGroup: "other"
+  },
+  {
+    provider: "orcarouter" /* ORCAROUTER */,
+    displayName: "OrcaRouter (Smart routing gateway)",
+    selectionGroup: "other",
+    firstRunRequirement: "apiKey"
   },
   {
     provider: "aimlapi" /* AIMLAPI */,

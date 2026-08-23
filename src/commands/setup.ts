@@ -76,6 +76,12 @@ const SETUP_PROVIDERS: SetupProviderDefinition[] = [
     selectionGroup: 'other'
   },
   {
+    provider: OCO_AI_PROVIDER_ENUM.ORCAROUTER,
+    displayName: 'OrcaRouter (Smart routing gateway)',
+    selectionGroup: 'other',
+    firstRunRequirement: 'apiKey'
+  },
+  {
     provider: OCO_AI_PROVIDER_ENUM.AIMLAPI,
     displayName: 'AI/ML API',
     selectionGroup: 'other'
