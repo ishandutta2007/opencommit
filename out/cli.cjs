@@ -84972,11 +84972,12 @@ var OpenRouterEngine = class {
 };
 
 // src/engine/orcarouter.ts
+var DEFAULT_ORCAROUTER_BASE_URL = "https://api.orcarouter.ai/v1";
 var OrcaRouterEngine = class extends OpenAiEngine {
   constructor(config7) {
     super({
-      baseURL: "https://api.orcarouter.ai/v1",
-      ...config7
+      ...config7,
+      baseURL: config7.baseURL ?? DEFAULT_ORCAROUTER_BASE_URL
     });
     this.providerName = "orcarouter";
   }
@@ -86558,7 +86559,10 @@ async function fetchOrcaRouterModels(apiKey) {
     url: "https://api.orcarouter.ai/v1/models",
     headers: { Authorization: `Bearer ${apiKey}` },
     fallback: MODEL_LIST.orcarouter,
-    mapModels: (data) => data.data?.map((model) => model.id).sort()
+    mapModels: (data) => data.data?.filter((model) => {
+      const outputModalities = model.architecture?.output_modalities;
+      return !outputModalities || outputModalities.includes("text");
+    })?.map((model) => model.id).sort()
   });
 }
 async function fetchModelsForProvider(provider, apiKey, baseUrl, forceRefresh = false) {

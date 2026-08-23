@@ -137,9 +137,19 @@ describe('provider model fetchers', () => {
       ],
       payload: {
         data: [
-          { id: 'openai/gpt-5' },
+          {
+            id: 'openai/gpt-5',
+            architecture: { output_modalities: ['text'] }
+          },
           { id: 'orcarouter/auto' },
-          { id: 'anthropic/claude-sonnet-4-5' },
+          {
+            id: 'anthropic/claude-sonnet-4-5',
+            architecture: { output_modalities: ['text'] }
+          },
+          {
+            id: 'openai/gpt-image-1',
+            architecture: { output_modalities: ['image'] }
+          },
           { id: 'orcarouter/fusion' }
         ]
       },
@@ -163,8 +173,22 @@ describe('provider model fetchers', () => {
   it('keeps direct provider-prefixed OrcaRouter models selectable', async () => {
     mockJsonResponse({
       data: [
-        { id: 'openai/gpt-5' },
-        { id: 'anthropic/claude-sonnet-4-5' },
+        {
+          id: 'openai/gpt-5',
+          architecture: { output_modalities: ['text'] }
+        },
+        {
+          id: 'anthropic/claude-sonnet-4-5',
+          architecture: { output_modalities: ['text'] }
+        },
+        {
+          id: 'kling/kling-v3-omni',
+          architecture: { output_modalities: ['video'] }
+        },
+        {
+          id: 'openai/tts-1',
+          architecture: { output_modalities: ['audio'] }
+        },
         { id: 'orcarouter/auto' }
       ]
     });

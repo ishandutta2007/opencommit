@@ -1,5 +1,10 @@
 import { OpenAI } from 'openai';
+import {
+  DEFAULT_CONFIG,
+  OCO_AI_PROVIDER_ENUM
+} from '../../src/commands/config';
 import { OrcaRouterEngine } from '../../src/engine/orcarouter';
+import { getEngine } from '../../src/utils/engine';
 
 describe('OrcaRouterEngine', () => {
   const baseConfig = {
@@ -46,6 +51,19 @@ describe('OrcaRouterEngine', () => {
     });
 
     expect(engine.config.baseURL).toBe('https://custom.example.com/v1');
+  });
+
+  it('preserves the default base URL through the real engine factory', () => {
+    const engine = getEngine({
+      ...DEFAULT_CONFIG,
+      OCO_AI_PROVIDER: OCO_AI_PROVIDER_ENUM.ORCAROUTER,
+      OCO_MODEL: 'orcarouter/auto',
+      OCO_API_KEY: 'test-orcarouter-key',
+      OCO_API_URL: undefined
+    } as any) as OrcaRouterEngine;
+
+    expect(engine.config.baseURL).toBe('https://api.orcarouter.ai/v1');
+    expect(engine.client.baseURL).toBe('https://api.orcarouter.ai/v1');
   });
 
   it('strips <think> tags from response content', async () => {

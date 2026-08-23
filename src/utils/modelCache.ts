@@ -42,6 +42,9 @@ function isCacheValid(cache: ModelCache | null): boolean {
 
 interface ModelListItem {
   id: string;
+  architecture?: {
+    output_modalities?: string[];
+  };
 }
 
 interface ModelListResponse {
@@ -191,10 +194,13 @@ export async function fetchOrcaRouterModels(apiKey: string): Promise<string[]> {
     fallback: MODEL_LIST.orcarouter,
     mapModels: (data) =>
       (data as ModelListResponse).data
-        // OrcaRouter intentionally returns provider-prefixed model IDs such as
-        // `openai/gpt-5`, `anthropic/claude-*`, `google/*` — the gateway exposes
-        // them all via the OpenAI-compatible chat endpoint, so keep the full
-        // catalog selectable rather than filtering to `orcarouter/*` aliases.
+        // The catalog also contains image, audio, and video generators. Keep
+        // text-output models plus entries whose older metadata omits the
+        // modality field, while preserving provider-prefixed chat model IDs.
+        ?.filter((model) => {
+          const outputModalities = model.architecture?.output_modalities;
+          return !outputModalities || outputModalities.includes('text');
+        })
         ?.map((model) => model.id)
         .sort()
   });
