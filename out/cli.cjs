@@ -67351,6 +67351,7 @@ var CONFIG_KEYS = /* @__PURE__ */ ((CONFIG_KEYS3) => {
   CONFIG_KEYS3["OCO_TOKENS_MAX_OUTPUT"] = "OCO_TOKENS_MAX_OUTPUT";
   CONFIG_KEYS3["OCO_DESCRIPTION"] = "OCO_DESCRIPTION";
   CONFIG_KEYS3["OCO_EMOJI"] = "OCO_EMOJI";
+  CONFIG_KEYS3["OCO_EMOJI_POSITION_BEFORE_DESCRIPTION"] = "OCO_EMOJI_POSITION_BEFORE_DESCRIPTION";
   CONFIG_KEYS3["OCO_MODEL"] = "OCO_MODEL";
   CONFIG_KEYS3["OCO_LANGUAGE"] = "OCO_LANGUAGE";
   CONFIG_KEYS3["OCO_WHY"] = "OCO_WHY";
@@ -68019,6 +68020,14 @@ var configValidators = {
     );
     return value;
   },
+  ["OCO_EMOJI_POSITION_BEFORE_DESCRIPTION" /* OCO_EMOJI_POSITION_BEFORE_DESCRIPTION */](value) {
+    validateConfig(
+      "OCO_EMOJI_POSITION_BEFORE_DESCRIPTION" /* OCO_EMOJI_POSITION_BEFORE_DESCRIPTION */,
+      typeof value === "boolean",
+      "Must be boolean: true or false"
+    );
+    return value;
+  },
   ["OCO_OMIT_SCOPE" /* OCO_OMIT_SCOPE */](value) {
     validateConfig(
       "OCO_OMIT_SCOPE" /* OCO_OMIT_SCOPE */,
@@ -68212,6 +68221,7 @@ var DEFAULT_CONFIG = {
   OCO_REASONING_MAX_TOKENS: 1e3 /* DEFAULT_MAX_REASONING */,
   OCO_DESCRIPTION: false,
   OCO_EMOJI: false,
+  OCO_EMOJI_POSITION_BEFORE_DESCRIPTION: false,
   OCO_MODEL: getDefaultModel("openai"),
   OCO_LANGUAGE: "en",
   OCO_MESSAGE_TEMPLATE_PLACEHOLDER: "$msg",
@@ -68248,6 +68258,9 @@ var getEnvConfig = (envPath) => {
     ),
     OCO_DESCRIPTION: parseConfigVarValue(process.env.OCO_DESCRIPTION),
     OCO_EMOJI: parseConfigVarValue(process.env.OCO_EMOJI),
+    OCO_EMOJI_POSITION_BEFORE_DESCRIPTION: parseConfigVarValue(
+      process.env.OCO_EMOJI_POSITION_BEFORE_DESCRIPTION
+    ),
     OCO_LANGUAGE: process.env.OCO_LANGUAGE,
     OCO_MESSAGE_TEMPLATE_PLACEHOLDER: process.env.OCO_MESSAGE_TEMPLATE_PLACEHOLDER,
     OCO_PROMPT_MODULE: process.env.OCO_PROMPT_MODULE,
@@ -68385,6 +68398,11 @@ function getConfigKeyDetails(key) {
     case "OCO_EMOJI" /* OCO_EMOJI */:
       return {
         description: "Preface a message with GitMoji",
+        values: ["true", "false"]
+      };
+    case "OCO_EMOJI_POSITION_BEFORE_DESCRIPTION" /* OCO_EMOJI_POSITION_BEFORE_DESCRIPTION */:
+      return {
+        description: "Place GitMoji immediately before the commit subject instead of at the start of the header",
         values: ["true", "false"]
       };
     case "OCO_WHY" /* OCO_WHY */:
@@ -85094,6 +85112,30 @@ var computeHash = async (content, algorithm = "sha256") => {
 // src/modules/commitlint/prompts.ts
 init_dist2();
 var import_types = __toESM(require_lib5(), 1);
+
+// src/utils/removeConventionalCommitWord.ts
+function removeConventionalCommitWord(message) {
+  return message.replace(/^(fix|feat)\((.+?)\):/, "($2):");
+}
+
+// src/utils/gitmoji.ts
+var getGitMojiPositionInstruction = (beforeDescription) => beforeDescription ? 'Place the GitMoji immediately before the commit subject, after the Conventional Commit type and optional scope. Example: "chore(config): \u{1F527} update lint rules".' : 'Place the GitMoji at the start of the commit header. Example: "\u{1F527} (config): update lint rules".';
+var formatGitMojiCommit = ({
+  beforeDescription,
+  emoji,
+  message
+}) => {
+  if (!beforeDescription) {
+    return `${emoji} ${removeConventionalCommitWord(message)}`;
+  }
+  const separatorIndex = message.search(/[:：]/);
+  if (separatorIndex === -1) return `${emoji} ${message}`;
+  const header = message.slice(0, separatorIndex + 1);
+  const description = message.slice(separatorIndex + 1).trimStart();
+  return `${header} ${emoji}${description ? ` ${description}` : ""}`;
+};
+
+// src/modules/commitlint/prompts.ts
 var config2 = getConfig();
 var getTypeRuleExtraDescription = (type2, prompt) => prompt?.questions?.type?.enum?.[type2]?.description;
 var llmReadableRules = {
@@ -85210,10 +85252,13 @@ Example Git Diff is to follow:`
   },
   INIT_DIFF_PROMPT
 ];
-var INIT_MAIN_PROMPT = (language, prompts) => ({
+var INIT_MAIN_PROMPT = (language, prompts, useGitMoji = config2.OCO_EMOJI) => ({
   role: "system",
   content: `${IDENTITY} Your mission is to create clean and comprehensive commit messages in the given @commitlint convention and explain WHAT were the changes ${config2.OCO_WHY ? "and WHY the changes were done" : ""}. I'll send you an output of 'git diff --staged' command, and you convert it into a commit message.
-${config2.OCO_EMOJI ? "Use GitMoji convention to preface the commit." : "Do not preface the commit with anything."}
+${useGitMoji ? "Use GitMoji convention to preface the commit." : "Do not preface the commit with anything."}
+${useGitMoji ? getGitMojiPositionInstruction(
+    config2.OCO_EMOJI_POSITION_BEFORE_DESCRIPTION
+  ) : ""}
 ${config2.OCO_DESCRIPTION ? `Add a short description of WHY the changes are done after the commit message. Don't start it with "This commit", just describe the changes.` : "Don't add any descriptions to the commit, only commit message."}
 Use the present tense. Use ${language} to answer.
 ${config2.OCO_ONE_LINE_COMMIT ? "Craft a concise commit message that encapsulates all changes made, with an emphasis on the primary updates. If the modifications share a common theme or scope, mention it succinctly; otherwise, leave the scope out to maintain focus. The goal is to provide a clear and unified overview of the changes in a one single message, without diverging into a list of commit per file change." : ""}
@@ -85366,11 +85411,6 @@ var configureCommitlintIntegration = async (force = false) => {
   spin.stop(`Done - please review contents of ${COMMITLINT_LLM_CONFIG_PATH}`);
 };
 
-// src/utils/removeConventionalCommitWord.ts
-function removeConventionalCommitWord(message) {
-  return message.replace(/^(fix|feat)\((.+?)\):/, "($2):");
-}
-
 // src/prompts.ts
 var config4 = getConfig();
 var translation2 = i18n[config4.OCO_LANGUAGE || "en"];
@@ -85468,6 +85508,10 @@ var INIT_MAIN_PROMPT2 = (language, fullGitMojiSpec, context) => {
   const missionStatement = `${IDENTITY} Your mission is to create clean and comprehensive commit messages as per the ${commitConvention} and explain WHAT were the changes and mainly WHY the changes were done.`;
   const diffInstruction = "I'll send you an output of 'git diff --staged' command, and you are to convert it into a commit message.";
   const conventionGuidelines = getCommitConvention(fullGitMojiSpec);
+  const useGitMoji = fullGitMojiSpec || config4.OCO_EMOJI;
+  const gitMojiPositionGuideline = useGitMoji ? getGitMojiPositionInstruction(
+    config4.OCO_EMOJI_POSITION_BEFORE_DESCRIPTION
+  ) : "";
   const descriptionGuideline = getDescriptionInstruction();
   const oneLineCommitGuideline = getOneLineCommitInstruction();
   const scopeInstruction = getScopeInstruction();
@@ -85476,6 +85520,7 @@ var INIT_MAIN_PROMPT2 = (language, fullGitMojiSpec, context) => {
   const content = `${missionStatement}
 ${diffInstruction}
 ${conventionGuidelines}
+${gitMojiPositionGuideline}
 ${descriptionGuideline}
 ${oneLineCommitGuideline}
 ${scopeInstruction}
@@ -85514,23 +85559,28 @@ var COMMIT_TYPES = {
   fix: "\u{1F41B}",
   feat: "\u2728"
 };
-var generateCommitString = (type2, message) => {
-  const cleanMessage = removeConventionalCommitWord(message);
-  return config4.OCO_EMOJI ? `${COMMIT_TYPES[type2]} ${cleanMessage}` : message;
+var generateCommitString = (type2, message, useGitMoji) => {
+  if (!useGitMoji) return message;
+  return formatGitMojiCommit({
+    beforeDescription: config4.OCO_EMOJI_POSITION_BEFORE_DESCRIPTION,
+    emoji: COMMIT_TYPES[type2],
+    message
+  });
 };
-var getConsistencyContent = (translation3) => {
+var getConsistencyContent = (translation3, useGitMoji) => {
   const fixMessage = config4.OCO_OMIT_SCOPE && translation3.commitFixOmitScope ? translation3.commitFixOmitScope : translation3.commitFix;
   const featMessage = config4.OCO_OMIT_SCOPE && translation3.commitFeatOmitScope ? translation3.commitFeatOmitScope : translation3.commitFeat;
-  const fix = generateCommitString("fix", fixMessage);
-  const feat = config4.OCO_ONE_LINE_COMMIT ? "" : generateCommitString("feat", featMessage);
+  const fix = generateCommitString("fix", fixMessage, useGitMoji);
+  const feat = config4.OCO_ONE_LINE_COMMIT ? "" : generateCommitString("feat", featMessage, useGitMoji);
   const description = config4.OCO_DESCRIPTION ? translation3.commitDescription : "";
   return [fix, feat, description].filter(Boolean).join("\n");
 };
-var INIT_CONSISTENCY_PROMPT = (translation3) => ({
+var INIT_CONSISTENCY_PROMPT = (translation3, useGitMoji) => ({
   role: "assistant",
-  content: getConsistencyContent(translation3)
+  content: getConsistencyContent(translation3, useGitMoji)
 });
 var getMainCommitPrompt = async (fullGitMojiSpec, context) => {
+  const useGitMoji = fullGitMojiSpec || config4.OCO_EMOJI;
   switch (config4.OCO_PROMPT_MODULE) {
     case "@commitlint":
       if (!await commitlintLLMConfigExists()) {
@@ -85548,18 +85598,20 @@ var getMainCommitPrompt = async (fullGitMojiSpec, context) => {
       return [
         commitlintPrompts.INIT_MAIN_PROMPT(
           translation2.localLanguage,
-          commitLintConfig.prompts
+          commitLintConfig.prompts,
+          useGitMoji
         ),
         INIT_DIFF_PROMPT,
         INIT_CONSISTENCY_PROMPT(
-          commitLintConfig.consistency[translation2.localLanguage]
+          commitLintConfig.consistency[translation2.localLanguage],
+          useGitMoji
         )
       ];
     default:
       return [
         INIT_MAIN_PROMPT2(translation2.localLanguage, fullGitMojiSpec, context),
         INIT_DIFF_PROMPT,
-        INIT_CONSISTENCY_PROMPT(translation2)
+        INIT_CONSISTENCY_PROMPT(translation2, useGitMoji)
       ];
   }
 };

@@ -6,7 +6,10 @@ import { configureCommitlintIntegration } from './modules/commitlint/config';
 import { commitlintPrompts } from './modules/commitlint/prompts';
 import { ConsistencyPrompt } from './modules/commitlint/types';
 import * as utils from './modules/commitlint/utils';
-import { removeConventionalCommitWord } from './utils/removeConventionalCommitWord';
+import {
+  formatGitMojiCommit,
+  getGitMojiPositionInstruction
+} from './utils/gitmoji';
 
 const config = getConfig();
 const translation = i18n[(config.OCO_LANGUAGE as I18nLocals) || 'en'];
@@ -143,13 +146,19 @@ const INIT_MAIN_PROMPT = (
   const diffInstruction =
     "I'll send you an output of 'git diff --staged' command, and you are to convert it into a commit message.";
   const conventionGuidelines = getCommitConvention(fullGitMojiSpec);
+  const useGitMoji = fullGitMojiSpec || config.OCO_EMOJI;
+  const gitMojiPositionGuideline = useGitMoji
+    ? getGitMojiPositionInstruction(
+        config.OCO_EMOJI_POSITION_BEFORE_DESCRIPTION
+      )
+    : '';
   const descriptionGuideline = getDescriptionInstruction();
   const oneLineCommitGuideline = getOneLineCommitInstruction();
   const scopeInstruction = getScopeInstruction();
   const generalGuidelines = `Use the present tense. Lines must not be longer than 74 characters. Use ${language} for the commit message.`;
   const userInputContext = userInputCodeContext(context);
 
-  const content = `${missionStatement}\n${diffInstruction}\n${conventionGuidelines}\n${descriptionGuideline}\n${oneLineCommitGuideline}\n${scopeInstruction}\n${generalGuidelines}\n${userInputContext}`;
+  const content = `${missionStatement}\n${diffInstruction}\n${conventionGuidelines}\n${gitMojiPositionGuideline}\n${descriptionGuideline}\n${oneLineCommitGuideline}\n${scopeInstruction}\n${generalGuidelines}\n${userInputContext}`;
 
   return { role: 'system', content };
 };
@@ -190,13 +199,22 @@ const COMMIT_TYPES = {
 
 const generateCommitString = (
   type: keyof typeof COMMIT_TYPES,
-  message: string
+  message: string,
+  useGitMoji: boolean
 ): string => {
-  const cleanMessage = removeConventionalCommitWord(message);
-  return config.OCO_EMOJI ? `${COMMIT_TYPES[type]} ${cleanMessage}` : message;
+  if (!useGitMoji) return message;
+
+  return formatGitMojiCommit({
+    beforeDescription: config.OCO_EMOJI_POSITION_BEFORE_DESCRIPTION,
+    emoji: COMMIT_TYPES[type],
+    message
+  });
 };
 
-const getConsistencyContent = (translation: ConsistencyPrompt) => {
+const getConsistencyContent = (
+  translation: ConsistencyPrompt,
+  useGitMoji: boolean
+) => {
   const fixMessage =
     config.OCO_OMIT_SCOPE && translation.commitFixOmitScope
       ? translation.commitFixOmitScope
@@ -207,10 +225,10 @@ const getConsistencyContent = (translation: ConsistencyPrompt) => {
       ? translation.commitFeatOmitScope
       : translation.commitFeat;
 
-  const fix = generateCommitString('fix', fixMessage);
+  const fix = generateCommitString('fix', fixMessage, useGitMoji);
   const feat = config.OCO_ONE_LINE_COMMIT
     ? ''
-    : generateCommitString('feat', featMessage);
+    : generateCommitString('feat', featMessage, useGitMoji);
 
   const description = config.OCO_DESCRIPTION
     ? translation.commitDescription
@@ -220,16 +238,19 @@ const getConsistencyContent = (translation: ConsistencyPrompt) => {
 };
 
 const INIT_CONSISTENCY_PROMPT = (
-  translation: ConsistencyPrompt
+  translation: ConsistencyPrompt,
+  useGitMoji: boolean
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam => ({
   role: 'assistant',
-  content: getConsistencyContent(translation)
+  content: getConsistencyContent(translation, useGitMoji)
 });
 
 export const getMainCommitPrompt = async (
   fullGitMojiSpec: boolean,
   context: string
 ): Promise<Array<OpenAI.Chat.Completions.ChatCompletionMessageParam>> => {
+  const useGitMoji = fullGitMojiSpec || config.OCO_EMOJI;
+
   switch (config.OCO_PROMPT_MODULE) {
     case '@commitlint':
       if (!(await utils.commitlintLLMConfigExists())) {
@@ -253,13 +274,15 @@ export const getMainCommitPrompt = async (
       return [
         commitlintPrompts.INIT_MAIN_PROMPT(
           translation.localLanguage,
-          commitLintConfig.prompts
+          commitLintConfig.prompts,
+          useGitMoji
         ),
         INIT_DIFF_PROMPT,
         INIT_CONSISTENCY_PROMPT(
           commitLintConfig.consistency[
             translation.localLanguage
-          ] as ConsistencyPrompt
+          ] as ConsistencyPrompt,
+          useGitMoji
         )
       ];
 
@@ -267,7 +290,7 @@ export const getMainCommitPrompt = async (
       return [
         INIT_MAIN_PROMPT(translation.localLanguage, fullGitMojiSpec, context),
         INIT_DIFF_PROMPT,
-        INIT_CONSISTENCY_PROMPT(translation)
+        INIT_CONSISTENCY_PROMPT(translation, useGitMoji)
       ];
   }
 };

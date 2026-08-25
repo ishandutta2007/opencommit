@@ -12,6 +12,7 @@ import {
 import { getConfig } from '../../commands/config';
 import { i18n, I18nLocals } from '../../i18n';
 import { IDENTITY, INIT_DIFF_PROMPT } from '../../prompts';
+import { getGitMojiPositionInstruction } from '../../utils/gitmoji';
 import { ConsistencyPrompt } from './types';
 
 const config = getConfig();
@@ -268,16 +269,24 @@ Example Git Diff is to follow:`
  */
 const INIT_MAIN_PROMPT = (
   language: string,
-  prompts: string[]
+  prompts: string[],
+  useGitMoji: boolean = config.OCO_EMOJI
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam => ({
   role: 'system',
   content: `${IDENTITY} Your mission is to create clean and comprehensive commit messages in the given @commitlint convention and explain WHAT were the changes ${
     config.OCO_WHY ? 'and WHY the changes were done' : ''
   }. I'll send you an output of 'git diff --staged' command, and you convert it into a commit message.
 ${
-  config.OCO_EMOJI
+  useGitMoji
     ? 'Use GitMoji convention to preface the commit.'
     : 'Do not preface the commit with anything.'
+}
+${
+  useGitMoji
+    ? getGitMojiPositionInstruction(
+        config.OCO_EMOJI_POSITION_BEFORE_DESCRIPTION
+      )
+    : ''
 }
 ${
   config.OCO_DESCRIPTION

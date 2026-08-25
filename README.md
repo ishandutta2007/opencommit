@@ -117,7 +117,7 @@ There are multiple optional flags that can be used with the `oco` command:
 
 Link to the GitMoji specification: https://gitmoji.dev/
 
-This flag can only be used if the `OCO_EMOJI` configuration item is set to `true`. This flag allows users to use all emojis in the GitMoji specification, By default, the GitMoji full specification is set to `false`, which only includes 10 emojis (🐛✨📝🚀✅♻️⬆️🔧🌐💡).
+This flag enables GitMoji and allows users to use all emojis in the GitMoji specification. Without the flag, `OCO_EMOJI=true` uses a shorter set of 10 emojis (🐛✨📝🚀✅♻️⬆️🔧🌐💡) to limit the number of tokens sent in each request.
 
 This is due to limit the number of tokens sent in each request. However, if you would like to use the full GitMoji specification, you can use the `--fgm` flag.
 
@@ -151,6 +151,7 @@ OCO_REASONING=<override reasoning-model auto-detection with true or false; omitt
 OCO_REASONING_MAX_TOKENS=<max completion token budget for reasoning models, including hidden reasoning tokens (default: 1000)>
 OCO_DESCRIPTION=<postface a message with ~3 sentences description of the changes>
 OCO_EMOJI=<boolean, add GitMoji>
+OCO_EMOJI_POSITION_BEFORE_DESCRIPTION=<boolean, place GitMoji immediately before the commit subject; default: false>
 OCO_MODEL=<either 'gpt-4o-mini' (default), 'gpt-4o', 'gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo', 'gpt-3.5-turbo-0125', 'gpt-4-1106-preview', 'gpt-4-turbo-preview' or 'gpt-4-0125-preview' or any Anthropic or Ollama model or any string basically, but it should be a valid model name>
 OCO_LANGUAGE=<locale, scroll to the bottom to see options>
 OCO_MESSAGE_TEMPLATE_PLACEHOLDER=<message template placeholder, default: '$msg'>
@@ -193,6 +194,25 @@ To remove preface emojis:
 ```sh
 oco config set OCO_EMOJI=false
 ```
+
+By default, GitMoji appears at the start of the commit header:
+
+```text
+🐛 (server.ts): handle an unavailable port
+```
+
+To place GitMoji immediately before the subject, after the Conventional Commit
+type and optional scope:
+
+```sh
+oco config set OCO_EMOJI_POSITION_BEFORE_DESCRIPTION=true
+```
+
+```text
+fix(server.ts): 🐛 handle an unavailable port
+```
+
+This setting only affects commits generated with `OCO_EMOJI=true` or `--fgm`.
 
 Other config options are behaving the same.
 
@@ -527,6 +547,7 @@ jobs:
           OCO_OPENAI_BASE_PATH: ''
           OCO_DESCRIPTION: false
           OCO_EMOJI: false
+          OCO_EMOJI_POSITION_BEFORE_DESCRIPTION: false
           OCO_MODEL: gpt-4o
           OCO_LANGUAGE: en
           OCO_PROMPT_MODULE: conventional-commit
