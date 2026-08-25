@@ -1,10 +1,15 @@
 import { jest } from '@jest/globals';
+import { dirname } from 'path';
+import englishConsistency from '../../src/i18n/en.json';
+import { prepareFile } from './utils';
 
 type PromptOptions = {
   description: boolean;
   emoji: boolean;
   fullGitMojiSpec?: boolean;
+  omitScope?: boolean;
   positionBeforeDescription: boolean;
+  promptModule?: 'conventional-commit' | '@commitlint';
 };
 
 const originalEnv = { ...process.env };
@@ -20,27 +25,46 @@ const loadPrompt = async ({
   description,
   emoji,
   fullGitMojiSpec = false,
-  positionBeforeDescription
+  omitScope = false,
+  positionBeforeDescription,
+  promptModule = 'conventional-commit'
 }: PromptOptions) => {
   resetEnv();
+  const commitlintConfig =
+    promptModule === '@commitlint'
+      ? await prepareFile(
+          '.opencommit-commitlint',
+          JSON.stringify({
+            consistency: { english: englishConsistency },
+            hash: 'test-hash',
+            prompts: ['The type should be one of: fix, feat.']
+          })
+        )
+      : undefined;
+
   Object.assign(process.env, {
     OCO_DESCRIPTION: String(description),
     OCO_EMOJI: String(emoji),
     OCO_EMOJI_POSITION_BEFORE_DESCRIPTION: String(positionBeforeDescription),
     OCO_LANGUAGE: 'en',
-    OCO_OMIT_SCOPE: 'false',
+    OCO_OMIT_SCOPE: String(omitScope),
     OCO_ONE_LINE_COMMIT: 'false',
-    OCO_PROMPT_MODULE: 'conventional-commit'
+    OCO_PROMPT_MODULE: promptModule,
+    ...(commitlintConfig ? { PWD: dirname(commitlintConfig.filePath) } : {})
   });
 
-  jest.resetModules();
-  const { getMainCommitPrompt } = await import('../../src/prompts');
-  const prompt = await getMainCommitPrompt(fullGitMojiSpec, '');
+  try {
+    jest.resetModules();
+    const { getMainCommitPrompt } = await import('../../src/prompts');
+    const prompt = await getMainCommitPrompt(fullGitMojiSpec, '');
 
-  return {
-    assistant: prompt[2].content as string,
-    system: prompt[0].content as string
-  };
+    return {
+      assistant: prompt[2].content as string,
+      system: prompt[0].content as string
+    };
+  } finally {
+    await commitlintConfig?.cleanup();
+  }
 };
 
 afterAll(() => {
@@ -118,5 +142,40 @@ it('applies the configured position when --fgm enables GitMoji', async () => {
   );
   expect(prompt.assistant).toContain(
     'fix(server.ts): 🐛 change port variable case'
+  );
+});
+
+it('applies the configured position to the commitlint prompt path', async () => {
+  const prompt = await loadPrompt({
+    description: true,
+    emoji: true,
+    positionBeforeDescription: true,
+    promptModule: '@commitlint'
+  });
+
+  expect(prompt.system).toContain('given @commitlint convention');
+  expect(prompt.system).toContain(
+    'Place the GitMoji immediately before the commit subject'
+  );
+  expect(prompt.assistant).toContain(
+    'fix(server.ts): 🐛 change port variable case'
+  );
+  expect(prompt.assistant).toContain('The port variable is now named');
+});
+
+it('places GitMoji after an unscoped Conventional Commit type', async () => {
+  const prompt = await loadPrompt({
+    description: false,
+    emoji: true,
+    omitScope: true,
+    positionBeforeDescription: true
+  });
+
+  expect(prompt.system).toContain('Use the format: <type>: <subject>');
+  expect(prompt.assistant).toContain(
+    'fix: 🐛 change port variable case from lowercase port'
+  );
+  expect(prompt.assistant).toContain(
+    'feat: ✨ add support for process.env.PORT'
   );
 });
